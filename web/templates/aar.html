@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% block title %}After Action Review{% endblock %}
+{% block content %}
+<div class="grid-2" style="margin-bottom:10px">
+    <div class="card stat"><div class="value" id="aar-events">--</div><div class="label">AAR EVENTS</div></div>
+    <div class="card stat"><button class="btn" onclick="exportAAR()" style="font-size:1.2em;padding:12px 30px">EXPORT AAR</button><div class="label" style="margin-top:8px">Download Full Report</div></div>
+</div>
+
+<!-- ═══ Mission Recording Controls ═══ -->
+<div class="card" style="margin-bottom:10px">
+    <h3>MISSION RECORDING</h3>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <input id="rec-name" class="input" placeholder="Mission name…" style="flex:1;min-width:200px">
+        <button class="btn" id="btn-rec-start" onclick="recStart()">⏺ START RECORDING</button>
+        <button class="btn" id="btn-rec-stop" onclick="recStop()" style="display:none;background:#ff4444">⏹ STOP</button>
+        <span id="rec-status" style="color:#666"></span>
+    </div>
+</div>
+
+<!-- ═══ AAR Replay ═══ -->
+<div class="card" style="margin-bottom:10px">
+    <h3>AAR REPLAY</h3>
+    <div style="margin-bottom:8px">
+        <select id="replay-sel" class="input" style="max-width:400px" onchange="loadReplay()">
+            <option value="">— Select a recording —</option>
+        </select>
+        <button class="btn" onclick="loadSessions()" style="margin-left:8px">↻ Refresh</button>
+    </div>
+    <div id="replay-controls" style="display:none">
+        <div id="replay-map" style="height:400px;margin-bottom:8px;border:1px solid #222"></div>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
+            <button class="btn" id="btn-play" onclick="replayPlay()">▶ Play</button>
+            <button class="btn" id="btn-pause" onclick="replayPause()" style="display:none">⏸ Pause</button>
+            <button class="btn" onclick="setReplaySpeed(0.5)" style="padding:3px 6px;font-size:.7em">0.5x</button>
+            <button class="btn" onclick="setReplaySpeed(1)" style="padding:3px 6px;font-size:.7em">1x</button>
+            <button class="btn" onclick="setReplaySpeed(2)" style="padding:3px 6px;font-size:.7em">2x</button>
+            <button class="btn" onclick="setReplaySpeed(4)" style="padding:3px 6px;font-size:.7em">4x</button>
+            <span id="replay-time" style="font-family:monospace;color:#00ff41">T+0s</span>
+            <span id="replay-frame" style="color:#888">Frame 0 / 0</span>
+        </div>
+        <input type="range" id="replay-scrub" min="0" max="0" value="0" style="width:100%" oninput="replayScrub(this.value)">
+        <div id="replay-info" class="scroll-box" style="max-height:200px;margin-top:8px"></div>
+    </div>
+</div>
+
+<!-- ═══ Mission Report ═══ -->
+<div class="card" style="margin-bottom:10px">
+    <h3>MISSION REPORT</h3>
+    <div style="display:flex;gap:10px">
+        <button class="btn" onclick="downloadReport()">DOWNLOAD MISSION REPORT</button>
+    </div>
+</div>
+
+<!-- ═══ Enhanced Timeline ═══ -->
+<div class="card">
+    <h3>EVENT TIMELINE <span class="badge badge-green" id="timeline-total">0</span></h3>
+    <div style="margin:8px 0">
+        <div style="font-size:.7em;color:#666;margin-bottom:4px">FILTER BY TYPE</div>
+        <div id="timeline-filters" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px"></div>
+    </div>
+    <div style="margin:8px 0">
+        <div style="font-size:.7em;color:#666;margin-bottom:4px">EVENT DENSITY</div>
+        <div id="timeline-density" style="display:flex;align-items:flex-end;gap:1px;height:40px"></div>
+    </div>
+    <div class="scroll-box" style="max-height:600px" id="aar-timeline"></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+var _tlFilter=null;
+var EVT_COLORS={countermeasure:'#ff4444',detection:'#ffaa00',ew_action:'#4488ff',maneuver:'#00ff41',
+    hal_approved:'#00ccff',voice_command:'#ff66ff',geofence_alert:'#ff8800',red_force:'#ff2222',
+    contingency:'#ffa500',scenario_loaded:'#4488ff',swarm_created:'#00ff41',nlp_command:'#ff66ff',
+    waypoint_set:'#00aaff'};
+
+async function refreshAAR(){
+    var url='/api/v1/aar/timeline';
+    if(_tlFilter) url+='?type='+_tlFilter;
+    const d=await apiFetch(url);
+    document.getElementById('aar-events').textContent=d.total||0;
+    document.getElementById('timeline-total').textContent=d.events.length;
+    // Filter buttons
+    var fHtml='<button class="btn" style="padding:2px 8px;font-size:.7em'+(!_tlFilter?';background:#00ff41;color:#000':'')+'" onclick="setFilter(null)">ALL ('+d.total+')</button>';
+    var sorted=Object.entries(d.type_counts||{}).sort(function(a,b){return b[1]-a[1];});
+    sorted.forEach(function(e){
+        var col=EVT_COLORS[e[0]]||'#888';
+        var active=_tlFilter===e[0];
+        fHtml+='<button class="btn" style="padding:2px 8px;font-size:.7em;border-color:'+col+';color:'+(active?'#000':col)+(active?';background:'+col:'')+'" onclick="setFilter(\''+e[0]+'\')">'+e[0]+' ('+e[1]+')</button>';
+    });
+    document.getElementById('timeline-filters').innerHTML=fHtml;
+    // Density bar
+    var density=d.density||[];
+    var maxD=Math.max.apply(null,density.concat([1]));
+    document.getElementById('timeline-density').innerHTML=density.map(function(v){
+        var h=Math.max(2,Math.round((v/maxD)*38));
+        return '<div style="flex:1;height:'+h+'px;background:#00ff41;border-radius:1px;opacity:'+(v?'0.8':'0.15')+'"></div>';
+    }).join('');
+    // Events
+    var div=document.getElementById('aar-timeline'); div.innerHTML='';
+    (d.events||[]).reverse().forEach(function(e){
+        var col=EVT_COLORS[e.type]||'#888';
+        div.innerHTML+='<div style="border-left:3px solid '+col+';padding:6px 12px;margin:3px 0;cursor:pointer" onclick="this.querySelector(\'.evt-detail\').style.display=this.querySelector(\'.evt-detail\').style.display===\'none\'?\'block\':\'none\'"><span style="color:#666">T+'+Math.round(e.elapsed||0)+'s</span> <span class="badge" style="color:'+col+';border-color:'+col+';margin:0 8px">'+e.type+'</span> '+(e.details||'').substring(0,80)+'<div class="evt-detail" style="display:none;margin-top:4px;padding:4px 8px;background:#0a0a0a;font-size:.8em;color:#aaa">'+(e.details||'')+'<br><span style="color:#555">'+( e.timestamp||'')+'</span></div></div>';
+    });
+}
+function setFilter(t){_tlFilter=t;refreshAAR();}
+function exportAAR(){apiFetch('/api/v1/aar/export').then(function(data){var b=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='MOS_AAR_'+new Date().toISOString().substring(0,10)+'.json';a.click();});}
+function downloadReport(){apiFetch('/api/v1/reports/mission').then(function(data){var b=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='MISSION_REPORT_'+new Date().toISOString().substring(0,10)+'.json';a.click();});}
+refreshAAR(); setInterval(refreshAAR,5000);
+
+/* ── Recording Controls ── */
+async function recStart(){
+    const name = document.getElementById('rec-name').value || undefined;
+    const r = await apiFetch('/api/v1/recording/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+    if(r.status==='ok'){
+        document.getElementById('btn-rec-start').style.display='none';
+        document.getElementById('btn-rec-stop').style.display='';
+        document.getElementById('rec-status').textContent='⏺ Recording: '+r.session_id.substring(0,8);
+        document.getElementById('rec-status').style.color='#ff4444';
+    } else { alert(r.error||'Failed'); }
+}
+async function recStop(){
+    const r = await apiFetch('/api/v1/recording/stop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    if(r.status==='ok'){
+        document.getElementById('btn-rec-start').style.display='';
+        document.getElementById('btn-rec-stop').style.display='none';
+        document.getElementById('rec-status').textContent='✓ Saved: '+r.session_id.substring(0,8);
+        document.getElementById('rec-status').style.color='#00ff41';
+        loadSessions();
+    }
+}
+
+/* ── AAR Replay Player (Phase 8: map-based) ── */
+let _frames=[]; let _playIdx=0; let _playTimer=null; let _replaySpeed=1;
+let _rMap=null; let _rAssetMarkers={}; let _rThreatMarkers={};
+const _rDC={air:'#00aaff',ground:'#00ff41',maritime:'#ff44ff'};
+function _rIcon(c,s){s=s||7;return L.divIcon({html:'<div style="width:'+s+'px;height:'+s+'px;background:'+c+';border-radius:50%;border:1px solid #fff;box-shadow:0 0 6px '+c+'"></div>',iconSize:[s,s],className:''});}
+function initReplayMap(){
+    if(_rMap)return;
+    _rMap=L.map('replay-map',{zoomControl:true}).setView([_amosTheater.lat,_amosTheater.lng],10);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'OSM'}).addTo(_rMap);
+}
+async function loadSessions(){
+    const rows=await apiFetch('/api/v1/recording/sessions');
+    const sel=document.getElementById('replay-sel');
+    sel.innerHTML='<option value="">— Select a recording —</option>';
+    (rows||[]).forEach(function(s){
+        sel.innerHTML+='<option value="'+s.session_id+'">'+s.name+' ('+s.frame_count+' frames, '+(s.status||'active')+')</option>';
+    });
+}
+async function loadReplay(){
+    const sid=document.getElementById('replay-sel').value;
+    if(!sid){document.getElementById('replay-controls').style.display='none';return;}
+    _frames=await apiFetch('/api/v1/recording/'+sid+'/frames');
+    if(!_frames||!_frames.length){document.getElementById('replay-info').innerHTML='<em>No frames</em>';return;}
+    document.getElementById('replay-controls').style.display='';
+    document.getElementById('replay-scrub').max=_frames.length-1;
+    document.getElementById('replay-scrub').value=0;
+    initReplayMap();
+    setTimeout(function(){_rMap.invalidateSize();},200);
+    // Clear old markers
+    for(var k in _rAssetMarkers){_rMap.removeLayer(_rAssetMarkers[k]);} _rAssetMarkers={};
+    for(var k in _rThreatMarkers){_rMap.removeLayer(_rThreatMarkers[k]);} _rThreatMarkers={};
+    _playIdx=0; renderFrame(0);
+    // Auto-fit bounds to first frame
+    var f=_frames[0]; var pts=[];
+    for(var id in (f.assets||{})){var a=f.assets[id];if(a.lat)pts.push([a.lat,a.lng]);}
+    for(var id in (f.threats||{})){var t=f.threats[id];if(t.lat)pts.push([t.lat,t.lng]);}
+    if(pts.length>1)_rMap.fitBounds(pts,{padding:[30,30]});
+    else if(pts.length===1)_rMap.setView(pts[0],10);
+}
+function renderFrame(idx){
+    if(idx<0||idx>=_frames.length) return;
+    const f=_frames[idx];
+    document.getElementById('replay-time').textContent='T+'+f.elapsed+'s';
+    document.getElementById('replay-frame').textContent='Frame '+(idx+1)+' / '+_frames.length;
+    document.getElementById('replay-scrub').value=idx;
+    // Update map markers
+    const assets=f.assets||{}; const threats=f.threats||{};
+    if(_rMap){
+        // Assets
+        var seenA={};
+        for(const[id,a] of Object.entries(assets)){
+            seenA[id]=true;
+            var c=_rDC[a.domain]||'#888';
+            if(_rAssetMarkers[id])_rAssetMarkers[id].setLatLng([a.lat,a.lng]);
+            else _rAssetMarkers[id]=L.marker([a.lat,a.lng],{icon:_rIcon(c)}).bindTooltip(id).addTo(_rMap);
+        }
+        for(var k in _rAssetMarkers){if(!seenA[k]){_rMap.removeLayer(_rAssetMarkers[k]);delete _rAssetMarkers[k];}}
+        // Threats
+        var seenT={};
+        for(const[id,t] of Object.entries(threats)){
+            seenT[id]=true;
+            if(t.lat){if(_rThreatMarkers[id])_rThreatMarkers[id].setLatLng([t.lat,t.lng]);
+            else _rThreatMarkers[id]=L.marker([t.lat,t.lng],{icon:_rIcon('#ff4444',9)}).bindTooltip(id).addTo(_rMap);}
+        }
+        for(var k in _rThreatMarkers){if(!seenT[k]){_rMap.removeLayer(_rThreatMarkers[k]);delete _rThreatMarkers[k];}}
+    }
+    // Text info
+    const div=document.getElementById('replay-info'); div.innerHTML='';
+    let html='<span style="color:#00ff41">ASSETS: '+Object.keys(assets).length+'</span> | <span style="color:#ff4444">THREATS: '+Object.keys(threats).length+'</span>';
+    div.innerHTML=html;
+}
+function setReplaySpeed(s){_replaySpeed=s;if(_playTimer){replayPause();replayPlay();}}
+function replayPlay(){
+    document.getElementById('btn-play').style.display='none';
+    document.getElementById('btn-pause').style.display='';
+    var interval=Math.max(50,500/_replaySpeed);
+    _playTimer=setInterval(function(){if(_playIdx<_frames.length-1){_playIdx++;renderFrame(_playIdx);}else{replayPause();}},interval);
+}
+function replayPause(){
+    clearInterval(_playTimer); _playTimer=null;
+    document.getElementById('btn-play').style.display='';
+    document.getElementById('btn-pause').style.display='none';
+}
+function replayScrub(val){_playIdx=parseInt(val);renderFrame(_playIdx);}
+loadSessions();
+</script>
+{% endblock %}

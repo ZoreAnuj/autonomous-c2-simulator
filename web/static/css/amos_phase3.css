@@ -1,0 +1,57 @@
+/* ═══════════════════════════════════════════════════════════
+   AMOS Phase 3 — Autonomous Mission Orchestration System
+   Modals, Toasts, Mesh, Tables, Swarm Patterns
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── MODAL ── */
+#amos-modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.75);
+  z-index:10000;backdrop-filter:blur(4px);display:none;cursor:pointer}
+#amos-modal-box{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  background:#0a0a1a;border:1px solid #00ff41;border-radius:10px;padding:24px;
+  min-width:420px;max-width:620px;max-height:80vh;overflow-y:auto;color:#ccc;
+  font-family:'Courier New',monospace;box-shadow:0 0 40px rgba(0,255,65,.15);cursor:default}
+#amos-modal-box table{width:100%;border-collapse:collapse}
+#amos-modal-box table td{padding:6px 8px;border-bottom:1px solid #1a1a3e;font-size:13px}
+#amos-modal-box table td:first-child{color:#666;white-space:nowrap;width:120px}
+
+/* ── TOAST ── */
+#amos-toast-container{position:fixed;top:70px;right:20px;z-index:9999;
+  display:flex;flex-direction:column;gap:6px;pointer-events:none;max-width:350px}
+.amos-toast{background:#0a0a1a;padding:10px 16px;border-radius:6px;
+  font-family:'Courier New',monospace;font-size:12px;pointer-events:auto;
+  animation:amosSlideIn .3s ease;max-width:320px}
+@keyframes amosSlideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* ── CONTEXT MENU ── */
+#amos-ctx-menu{display:none;position:fixed;z-index:10001;background:#0a0a1a;
+  border:1px solid #00ff41;border-radius:6px;padding:4px 0;min-width:180px;
+  font-family:'Courier New',monospace;font-size:12px;box-shadow:0 0 20px rgba(0,255,65,.2)}
+.amos-ctx-item{padding:8px 16px;cursor:pointer;color:#ccc;transition:all .15s}
+.amos-ctx-item:hover{background:#00ff4115;color:#00ff41}
+
+/* ── TABLES ── */
+table thead th{cursor:pointer;user-select:none;transition:color .2s;position:relative}
+table thead th:hover{color:#00ff41 !important}
+table thead th::after{content:'';margin-left:4px;font-size:10px}
+table tbody tr{transition:background .15s}
+table tbody tr:hover{background:rgba(0,255,65,.06) !important}
+table tbody tr[data-clickable]:hover{background:rgba(0,255,65,.12) !important;cursor:pointer}
+
+/* ── MESH LINES ── */
+.amos-mesh-line{pointer-events:auto}
+.amos-mesh-tooltip .leaflet-tooltip-content,
+.amos-mesh-tooltip{background:#0a0a1a !important;border:1px solid #00ff41 !important;
+  color:#00ff41 !important;font-family:'Courier New',monospace !important;
+  font-size:11px !important;padding:6px 10px !important;border-radius:4px !important}
+
+/* ── SWARM PATTERN LINES ── */
+.swarm-pattern-line{stroke-dasharray:8 6;stroke-opacity:0.7}
+
+/* ── ACTION BUTTONS IN MODAL ── */
+.amos-btn{padding:6px 14px;border-radius:4px;cursor:pointer;font-family:monospace;
+  font-size:12px;transition:all .2s;border-width:1px;border-style:solid;background:transparent}
+.amos-btn:hover{filter:brightness(1.3)}
+.amos-btn-green{color:#00ff41;border-color:#00ff41;background:#0a1a0a}
+.amos-btn-yellow{color:#ffd700;border-color:#ffd700;background:#1a1a0a}
+.amos-btn-red{color:#ff0040;border-color:#ff0040;background:#1a0a0a}
+.amos-btn-blue{color:#4488ff;border-color:#4488ff;background:#0a0a1a}

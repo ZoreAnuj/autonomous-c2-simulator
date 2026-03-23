@@ -1,0 +1,547 @@
+
+    <style>
+    .swarm-btn{background:#0a1a0a;color:#00ff41;border:1px solid #00ff4144;padding:8px 4px;
+        border-radius:4px;cursor:pointer;font-family:'Courier New',monospace;font-size:11px;
+        transition:all .2s;text-align:center}
+    .swarm-btn:hover{background:#00ff4115;border-color:#00ff41;box-shadow:0 0 10px #00ff4133}
+    .swarm-btn.active{background:#00ff4122;border-color:#00ff41;color:#fff;box-shadow:0 0 15px #00ff4144}
+    .cpanel{background:#111;border:1px solid #222;margin-bottom:4px}
+    .cpanel-hdr{color:#00ff41;font-size:.85em;padding:6px 10px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;border-bottom:1px solid #222}
+    .cpanel-hdr:hover{background:#1a1a1a}
+    .cpanel-hdr .chevron{color:#666;font-size:.7em;transition:transform .2s}
+    .cpanel-hdr .chevron.collapsed{transform:rotate(-90deg)}
+    .cpanel-body{padding:6px 10px;transition:max-height .3s ease}
+    .cpanel-body.collapsed{display:none}
+    .right-col{display:flex;flex-direction:column}
+    .right-col .cpanel{flex-shrink:1;min-height:0}
+    .right-col .cpanel .scroll-box{overflow-y:auto}
+    </style>
+{% extends "base.html" %}
+{% block title %}C2 Console{% endblock %}
+{% block content %}
+<div class="grid-4" style="margin-bottom:8px">
+ <div class="card stat"><div class="value" id="s-assets">--</div><div class="label">ASSETS</div></div>
+ <div class="card stat"><div class="value" id="s-threats" style="color:#ff4444">--</div><div class="label">THREATS</div></div>
+ <div class="card stat"><div class="value" id="s-hal" style="color:#4488ff">--</div><div class="label">PENDING HAL</div></div>
+ <div class="card stat"><div class="value" id="s-gf" style="color:#ffaa00">--</div><div class="label">GF ALERTS</div></div>
+</div>
+<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:8px">
+ <div>
+  <div class="card"><h3>TACTICAL MAP — Tehran AO
+   <span style="float:right">
+    <select id="wp-asset" style="width:130px;font-size:.8em"><option value="">-- select asset --</option></select>
+    <button class="btn" id="wp-btn" onclick="toggleWP()" style="padding:3px 8px" title="Toggle waypoint mode">📍 WP MODE</button>
+    <button class="btn btn-red" onclick="clearWP()" style="padding:3px 8px">CLR WP</button>
+   </span></h3>
+   <div id="map" style="height:520px"></div>
+   <div id="wp-status" style="color:#666;font-size:.75em;padding:4px"></div>
+  </div>
+  <div class="card"><h3>SIM CONTROL</h3>
+   <button class="btn" onclick="setSpd(0.5)">0.5x</button>
+   <button class="btn" onclick="setSpd(1)">1x</button>
+   <button class="btn" onclick="setSpd(2)">2x</button>
+   <button class="btn" onclick="setSpd(5)">5x</button>
+   <button class="btn" onclick="setSpd(10)">10x</button>
+   <span id="sim-clk" style="margin-left:10px;color:#888">T+0s</span>
+  </div>
+  <div class="card"><h3>MAP OVERLAYS</h3>
+   <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:.75em">
+    <label style="color:#ff4444;cursor:pointer"><input type="checkbox" id="ov-heat" onchange="toggleOverlay('heat')"> Threat Heatmap</label>
+    <label style="color:#ffaa00;cursor:pointer"><input type="checkbox" id="ov-engage" onchange="toggleOverlay('engage')"> Engagement Zones</label>
+    <label style="color:#00ffff;cursor:pointer"><input type="checkbox" id="ov-sensor" onchange="toggleOverlay('sensor')"> Sensor Coverage</label>
+    <label style="color:#00ff41;cursor:pointer"><input type="checkbox" id="ov-sector" onchange="toggleOverlay('sector')"> Domain Sectors</label>
+    <label style="color:#66ccff;cursor:pointer"><input type="checkbox" id="ov-weather" onchange="toggleOverlay('weather')"> Weather</label>
+   </div>
+  </div>
+ </div>
+ <div class="right-col">
+  <div class="cpanel">
+   <div class="cpanel-hdr" onclick="togglePanel(this)">ASSET STATUS <span class="badge badge-green" id="asset-count-badge">0</span><span class="chevron collapsed">▼</span></div>
+   <div class="cpanel-body collapsed"><div class="scroll-box" style="max-height:180px">
+    <table><thead><tr><th>ID</th><th>DOM</th><th>STS</th><th>BAT</th><th>COM</th></tr></thead>
+    <tbody id="a-tb"></tbody></table></div></div>
+  </div>
+  <div class="cpanel">
+   <div class="cpanel-hdr" onclick="togglePanel(this)">THREAT TRACKS <span class="badge badge-red" id="threat-count-badge">0</span><span class="chevron collapsed">▼</span></div>
+   <div class="cpanel-body collapsed"><div class="scroll-box" style="max-height:130px">
+    <table><thead><tr><th>TRACK</th><th>TYPE</th><th>STS</th></tr></thead>
+    <tbody id="t-tb"></tbody></table></div></div>
+  </div>
+  <div class="cpanel">
+   <div class="cpanel-hdr" onclick="togglePanel(this)">GEOFENCE ALERTS <span class="badge badge-yellow" id="gf-count-badge">0</span><span class="chevron collapsed">▼</span></div>
+   <div class="cpanel-body collapsed"><div class="scroll-box" style="max-height:100px" id="gf-alerts">
+    <div style="color:#666;padding:6px">No alerts</div></div></div>
+  </div>
+  <div class="cpanel">
+   <div class="cpanel-hdr" onclick="togglePanel(this)">C2 COMMAND<span class="chevron collapsed">▼</span></div>
+   <div class="cpanel-body collapsed">
+    <div style="display:flex;gap:4px;margin-bottom:4px;align-items:stretch">
+     <div style="flex:2;position:relative">
+      <button id="c2-asset-toggle" onclick="event.stopPropagation();c2ToggleDropdown()" style="width:100%;background:#0a0a0a;border:1px solid #00ff41;color:#00ff41;padding:4px 6px;border-radius:3px;cursor:pointer;font-size:.72em;text-align:left;font-family:inherit">▼ ASSETS <span id="c2-asset-count" style="float:right;color:#888">(0)</span></button>
+     </div>
+     <select id="c2-domain-filter" onchange="c2FilterAssets()" style="flex:1;background:#0a0a0a;border:1px solid #00ff41;color:#00ff41;padding:4px;border-radius:3px;font-size:.72em;font-family:inherit">
+      <option value="all">ALL</option><option value="ground" selected>GND</option><option value="air">AIR</option><option value="maritime">SEA</option>
+     </select>
+    </div>
+    <div style="display:flex;gap:4px;margin-bottom:4px">
+     <select id="c2-action" style="flex:2;background:#0a0a0a;border:1px solid #00ff41;color:#00ff41;padding:4px;border-radius:3px;font-size:.72em;font-family:inherit">
+      <optgroup label="FORMATIONS"><option value="form:LINE">⊞ LINE</option><option value="form:COLUMN">⊞ COLUMN</option><option value="form:WEDGE">⊞ WEDGE</option><option value="form:DIAMOND">⊞ DIAMOND</option><option value="form:SPREAD">⊞ SPREAD</option><option value="form:ORBIT">⊞ ORBIT</option></optgroup>
+      <optgroup label="COMMANDS"><option value="cmd:hold">⏸ HOLD</option><option value="cmd:rtb">⏎ RTB</option><option value="cmd:patrol">↻ PATROL</option></optgroup>
+      <optgroup label="SWARM"><option value="swarm:create">⬡ CREATE</option><option value="swarm:clear">✕ CLEAR</option></optgroup>
+     </select>
+     <button onclick="c2Execute()" style="flex:1;background:#00ff41;color:#000;border:none;padding:4px 10px;border-radius:3px;font-weight:bold;cursor:pointer;font-size:.75em;font-family:inherit">▶ EXEC</button>
+     <button id="c2-cancel-btn" onclick="c2Cancel()" style="flex:.6;background:#ff4444;color:#fff;border:none;padding:4px 6px;border-radius:3px;font-weight:bold;cursor:pointer;font-size:.75em;font-family:inherit;display:none">✕ CANCEL</button>
+    </div>
+    <div id="c2-status" style="color:#888;font-size:.68em;padding:1px 2px">Ready</div>
+   </div>
+  </div>
+ </div>
+</div>
+</div>
+<div id="c2-asset-dropdown" style="display:none;position:fixed;z-index:9999;background:#111;border:1px solid #00ff41;border-radius:4px;max-height:250px;overflow-y:auto;padding:4px">
+ <div style="padding:2px 6px;border-bottom:1px solid #333"><label style="color:#888;font-size:.7em;cursor:pointer"><input type="checkbox" id="c2-select-all" onchange="c2ToggleAll(this.checked)"> ALL</label></div>
+ <div id="c2-asset-list"><div style="color:#555;font-size:.7em;padding:4px">Loading...</div></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+// Collapsible panels
+function togglePanel(hdr){
+ var body=hdr.nextElementSibling;
+ var chev=hdr.querySelector('.chevron');
+ body.classList.toggle('collapsed');
+ if(chev)chev.classList.toggle('collapsed');
+}
+
+const map=L.map('map',{zoomControl:false}).setView([_amosTheater.lat,_amosTheater.lng],10);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'OSM'}).addTo(map);
+window._amosMap=map;
+// Cursor sharing — broadcast on mousemove (throttled)
+let _cursorThrottle=0;
+map.on('mousemove',function(e){var n=Date.now();if(n-_cursorThrottle<200)return;_cursorThrottle=n;socket.emit('operator_cursor',{lat:e.latlng.lat,lng:e.latlng.lng});});
+let aM={},tM={},wpM={},wpL={},gfL={},wpMode=false;
+const DC={air:'#00aaff',ground:'#00ff41',maritime:'#ff44ff'};
+function mkI(c,s){s=s||8;return L.divIcon({html:'<div style="width:'+s+'px;height:'+s+'px;background:'+c+';border-radius:50%;border:1px solid #fff;box-shadow:0 0 6px '+c+'"></div>',iconSize:[s,s],className:''});}
+
+// Waypoint mode
+function toggleWP(){
+ wpMode=!wpMode;
+ const b=document.getElementById('wp-btn');
+ b.style.background=wpMode?'#ffaa00':'transparent';
+ b.style.color=wpMode?'#000':'#00ff41';
+ b.style.borderColor=wpMode?'#ffaa00':'#00ff41';
+ map.getContainer().style.cursor=wpMode?'crosshair':'';
+ document.getElementById('wp-status').textContent=wpMode?'WAYPOINT MODE: Click map to set waypoint for selected asset':'';
+}
+function clearWP(){
+ const a=document.getElementById('wp-asset').value;
+ apiPost('/api/v1/waypoints/clear',a?{asset_id:a}:{});
+}
+map.on('click',function(e){
+ if(!wpMode)return;
+ const a=document.getElementById('wp-asset').value;
+ if(!a){alert('Select an asset first');return;}
+ apiPost('/api/v1/waypoints/add',{asset_id:a,lat:e.latlng.lat,lng:e.latlng.lng});
+});
+
+// Populate asset dropdown
+async function loadAssetSelect(){
+ const assets=await apiFetch('/api/v1/assets');
+ const sel=document.getElementById('wp-asset');
+ const cur=sel.value;sel.innerHTML='<option value="">-- select --</option>';
+ for(const id of Object.keys(assets).sort())sel.innerHTML+='<option value="'+id+'">'+id+'</option>';
+ if(cur)sel.value=cur;
+}
+loadAssetSelect();
+
+// Refresh
+async function refresh(){
+ const assets=await apiFetch('/api/v1/assets');
+ const tb=document.getElementById('a-tb');tb.innerHTML='';
+ for(const[id,a]of Object.entries(assets)){
+  const c=DC[a.domain]||'#888';
+  tb.innerHTML+='<tr><td style="color:'+c+'">'+id+'</td><td>'+a.domain+'</td><td><span class="badge badge-green">'+a.status+'</span></td><td>'+Math.round(a.health.battery_pct)+'%</td><td>'+Math.round(a.health.comms_strength)+'%</td></tr>';
+  const p=[a.position.lat,a.position.lng];
+  var sup=a.supplies||{};
+  var fPct=sup.fuel_pct!=null?Math.round(sup.fuel_pct):'-';
+  var fCol=sup.fuel_pct>50?'#0f0':sup.fuel_pct>20?'#fa0':'#f44';
+  var tip=id+' <span style="color:'+fCol+'">F:'+fPct+'%</span> A:'+((sup.ammo_rounds||0));
+  if(aM[id]){aM[id].setLatLng(p);aM[id].setTooltipContent(tip);}else aM[id]=L.marker(p,{icon:mkI(c)}).bindTooltip(tip).addTo(map);
+ }
+ document.getElementById('asset-count-badge').textContent=Object.keys(assets).length;
+ const threats=await apiFetch('/api/v1/threats');
+ const ttb=document.getElementById('t-tb');ttb.innerHTML='';
+ var activeThreatCount=0;
+ for(const[id,t]of Object.entries(threats)){
+  const n=t.neutralized;
+  ttb.innerHTML+='<tr style="'+(n?'opacity:.4':'')+'"><td>'+id+'</td><td>'+t.type+'</td><td><span class="badge '+(n?'badge-green':'badge-red')+'">'+(n?'NEUT':'ACTIVE')+'</span></td></tr>';
+  if(t.lat&&t.lng&&!n){const p=[t.lat,t.lng];if(tM[id])tM[id].setLatLng(p);else tM[id]=L.marker(p,{icon:mkI('#ff4444',10)}).bindTooltip(id).addTo(map);}
+  else if(n&&tM[id]){map.removeLayer(tM[id]);delete tM[id];}
+  if(!n) activeThreatCount++;
+ }
+ document.getElementById('threat-count-badge').textContent=activeThreatCount;
+ // Waypoints
+ const wps=await apiFetch('/api/v1/waypoints');
+ for(const[aid,ms]of Object.entries(wpM)){ms.forEach(function(m){map.removeLayer(m);});}
+ for(const[aid,l]of Object.entries(wpL)){map.removeLayer(l);}
+ wpM={};wpL={};
+ for(const[aid,waypoints]of Object.entries(wps)){
+  if(!waypoints.length)continue;
+  wpM[aid]=[];const pts=[];
+  if(aM[aid])pts.push(aM[aid].getLatLng());
+  waypoints.forEach(function(w,i){
+   const m=L.circleMarker([w.lat,w.lng],{radius:5,color:'#ffaa00',fillColor:'#ffaa00',fillOpacity:.8}).bindTooltip(aid+' WP-'+(i+1)).addTo(map);
+   wpM[aid].push(m);pts.push([w.lat,w.lng]);
+  });
+  if(pts.length>1)wpL[aid]=L.polyline(pts,{color:'#ffaa00',weight:2,dashArray:'5,5',opacity:.7}).addTo(map);
+ }
+ // Geofences
+ for(const[id,l]of Object.entries(gfL)){map.removeLayer(l);}
+ gfL={};
+ const gfs=await apiFetch('/api/v1/geofences');
+ const gc={operational:'#00ff41',restricted:'#ff4444',alert:'#ffaa00'};
+ for(const[id,gf]of Object.entries(gfs)){
+  const clr=gc[gf.type]||'#888';let layer;
+  if(Array.isArray(gf.points)){layer=L.polygon(gf.points.map(function(p){return[p.lat,p.lng];}),{color:clr,weight:1,fillOpacity:.03,dashArray:'8,4'});}
+  else if(gf.points&&gf.points.center){layer=L.circle([gf.points.center.lat,gf.points.center.lng],{radius:(gf.points.radius_nm||1)*1852,color:clr,weight:1,fillOpacity:.03,dashArray:'8,4'});}
+  if(layer){layer.bindTooltip(gf.name+' ['+gf.type.toUpperCase()+']');layer.addTo(map);gfL[id]=layer;}
+ }
+ // GF Alerts
+ const alerts=await apiFetch('/api/v1/geofences/alerts');
+ document.getElementById('gf-count-badge').textContent=alerts.length;
+ const ad=document.getElementById('gf-alerts');
+ if(alerts.length===0)ad.innerHTML='<div style="color:#666;padding:6px">No alerts</div>';
+ else ad.innerHTML=alerts.slice(-20).reverse().map(function(a){
+  const c=a.geofence_type==='restricted'?'#ff4444':'#ffaa00';
+  return '<div style="border-left:3px solid '+c+';padding:3px 8px;margin:2px 0;font-size:.8em"><strong style="color:'+c+'">'+a.event.toUpperCase()+'</strong> '+a.entity_id+' — '+a.geofence_name+'</div>';
+ }).join('');
+}
+
+window.onSimUpdate=function(d){
+ document.getElementById('s-assets').textContent=d.asset_count;
+ document.getElementById('s-threats').textContent=d.threat_count;
+ document.getElementById('s-hal').textContent=d.pending_hal;
+ document.getElementById('s-gf').textContent=d.gf_alerts;
+ document.getElementById('sim-clk').textContent='T+'+Math.round(d.clock.elapsed_sec)+'s ('+d.clock.speed+'x)';
+};
+function setSpd(s){apiPost('/api/v1/sim/speed',{speed:s});}
+refresh();setInterval(refresh,2500);
+
+// ═══ Phase 8: Map Overlays ═══
+var _ovLayers={heat:[],engage:[],sensor:[],sector:[],weather:[]};
+var _ovActive={heat:false,engage:false,sensor:false,sector:false,weather:false};
+var _heatLayer=null;
+function toggleOverlay(key){_ovActive[key]=document.getElementById('ov-'+key).checked;if(_ovActive[key])refreshOverlay(key);else clearOvLayer(key);}
+function clearOvLayer(key){
+ if(key==='heat'&&_heatLayer){map.removeLayer(_heatLayer);_heatLayer=null;return;}
+ _ovLayers[key].forEach(function(l){map.removeLayer(l);});_ovLayers[key]=[];
+}
+async function refreshOverlay(key){
+ clearOvLayer(key);
+ if(!_ovActive[key])return;
+ if(key==='heat'){
+  var d=await apiFetch('/api/v1/overlays/heatmap');
+  if(d.points&&d.points.length&&typeof L.heatLayer==='function'){
+   var pts=d.points.map(function(p){return[p.lat,p.lng,p.intensity||0.5];});
+   _heatLayer=L.heatLayer(pts,{radius:25,blur:20,maxZoom:14,gradient:{0.2:'blue',0.4:'cyan',0.6:'yellow',0.8:'orange',1.0:'red'}}).addTo(map);
+  }
+ } else if(key==='engage'){
+  var zones=await apiFetch('/api/v1/overlays/engagement-zones');
+  var dc={air:'#ff444466',ground:'#00ff4166',maritime:'#ff44ff66'};
+  zones.forEach(function(z){
+   var c=L.circle([z.center.lat,z.center.lng],{radius:z.radius_deg*111000,color:dc[z.domain]||'#ff444466',fillOpacity:0.08,weight:1,dashArray:'4,4'}).bindTooltip(z.asset_id+' — '+z.weapons.join(', ')).addTo(map);
+   _ovLayers.engage.push(c);
+  });
+ } else if(key==='sensor'){
+  var arcs=await apiFetch('/api/v1/overlays/sensor-coverage');
+  arcs.forEach(function(a){
+   var pts=[];
+   var lat=a.center.lat,lng=a.center.lng,r=a.range_deg,arc=a.arc_deg,brg=a.bearing;
+   if(arc>=360){var c=L.circle([lat,lng],{radius:r*111000,color:a.color,fillOpacity:0.05,weight:1}).bindTooltip(a.asset_id+' '+a.sensor).addTo(map);_ovLayers.sensor.push(c);return;}
+   pts.push([lat,lng]);
+   var start=brg-arc/2,step=arc/12;
+   for(var i=0;i<=12;i++){var ang=(start+step*i)*Math.PI/180;pts.push([lat+r*Math.cos(ang),lng+r*Math.sin(ang)]);}
+   pts.push([lat,lng]);
+   var poly=L.polygon(pts,{color:a.color,fillOpacity:0.06,weight:1}).bindTooltip(a.asset_id+' '+a.sensor).addTo(map);
+   _ovLayers.sensor.push(poly);
+  });
+ } else if(key==='sector'){
+  var secs=await apiFetch('/api/v1/overlays/sectors');
+  var dc2={air:'#00aaff',ground:'#00ff41',maritime:'#ff44ff'};
+  secs.forEach(function(s){
+   var rect=L.rectangle([[s.bounds.south,s.bounds.west],[s.bounds.north,s.bounds.east]],{color:dc2[s.domain]||'#888',fillOpacity:0.04,weight:1,dashArray:'6,4'}).bindTooltip(s.domain.toUpperCase()+' sector ('+s.asset_count+' assets)').addTo(map);
+   _ovLayers.sector.push(rect);
+  });
+ } else if(key==='weather'){
+  var ov=await apiFetch('/api/v1/weather/overlay');
+  (ov.points||[]).forEach(function(p){
+   var ic=L.divIcon({className:'',html:'<div style="font-size:12px;color:rgba(102,204,255,.6);transform:rotate('+p.wind_dir+'deg)">\u2191</div>',iconSize:[14,14]});
+   var m=L.marker([p.lat,p.lng],{icon:ic}).bindTooltip('Wind:'+p.wind_speed+'kt Vis:'+p.visibility+'km',{direction:'top'}).addTo(map);
+   _ovLayers.weather.push(m);
+   if(p.visibility<10){var op=Math.max(0.08,(10-p.visibility)/10*0.4);var c=L.circle([p.lat,p.lng],{radius:2500,color:'#66ccff',fillColor:'#66ccff',fillOpacity:op,weight:0}).addTo(map);_ovLayers.weather.push(c);}
+  });
+ }
+}
+setInterval(function(){for(var k in _ovActive){if(_ovActive[k])refreshOverlay(k);}},5000);
+
+// Theater switching now handled by base.html _theaterFlyTo()
+
+  // Expose map for AMOS Phase 3
+  (function(){
+    var els=document.querySelectorAll('.leaflet-container');
+    if(els.length){setTimeout(function(){
+      for(var k in window){try{if(window[k]&&window[k]._leaflet_id&&window[k].getCenter){window.amosMap=window[k];break;}}catch(e){}}
+    },500);}
+  })();
+
+
+
+
+// Alias for any other name used in onclick handlers
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+async function clearFormation() {
+    var domainEl = document.getElementById('swarm-domain');
+    var domain = (domainEl && domainEl.value) ? domainEl.value.toLowerCase() : 'ground';
+    var theaterSel = document.getElementById('theater-sel');
+    var theater = theaterSel ? theaterSel.value : '';
+    var statusEl = document.getElementById('swarm-status');
+    try {
+        var resp = await fetch('/api/v1/swarm/clear', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({domain: domain, theater: theater})
+        });
+        var data = await resp.json();
+        if (statusEl) { statusEl.textContent = data.message || 'Cleared'; statusEl.style.color = '#00ff88'; }
+    } catch(e) {
+        console.error('[SWARM] Clear error:', e);
+    }
+}
+
+</script>
+
+<script>
+// ── C2 Command Panel ──
+var c2Selected = {};
+var c2Assets = {};
+var c2Abort = null;  // AbortController for in-flight C2 requests
+
+function c2ActiveTheater(){
+    var sel=document.getElementById('theater-sel');
+    return sel ? sel.value : '';
+}
+
+function c2LoadAssets(){
+    fetch('/api/v1/assets').then(function(r){return r.json()}).then(function(data){
+        c2Assets = data;
+        c2RenderList();
+    }).catch(function(e){ console.warn('[C2] load error', e); });
+}
+
+function c2RenderList(){
+    var list = document.getElementById('c2-asset-list');
+    if(!list) return;
+    var filt = document.getElementById('c2-domain-filter');
+    var dom = filt ? filt.value : 'all';
+    var h = '';
+    var ids = Object.keys(c2Assets).sort();
+    var activeTheater = c2ActiveTheater();
+    for(var i=0; i<ids.length; i++){
+        var id = ids[i];
+        var a = c2Assets[id];
+        var ad = (a.domain||'').toLowerCase();
+        var at = (a.theater||'tehran').toLowerCase();
+        if(dom !== 'all' && ad !== dom) continue;
+        if(activeTheater && at !== activeTheater) continue;
+        var chk = c2Selected[id] ? ' checked' : '';
+        var col = ad==='air'?'#4fc3f7':ad==='maritime'?'#29b6f6':'#66bb6a';
+        h += '<label style="display:block;padding:2px 6px;font-size:.7em;cursor:pointer;color:#ccc">' +
+            '<input type="checkbox" class="c2-asset-cb" value="'+id+'"'+chk+
+            ' onchange="c2AssetCheck(this)"> <span style="color:'+col+'">'+id+'</span>'+
+            ' <span style="color:#555">('+ad+')</span></label>';
+    }
+    list.innerHTML = h || '<div style="color:#555;font-size:.7em;padding:4px">No assets</div>';
+    c2UpdateCount();
+}
+
+function c2AssetCheck(cb){
+    if(cb.checked) c2Selected[cb.value] = true;
+    else delete c2Selected[cb.value];
+    c2UpdateCount();
+}
+
+function c2UpdateCount(){
+    var el = document.getElementById('c2-asset-count');
+    if(el) el.textContent = '(' + Object.keys(c2Selected).length + ')';
+}
+
+function c2ToggleAll(checked){
+    document.querySelectorAll('.c2-asset-cb').forEach(function(cb){
+        cb.checked = checked;
+        if(checked) c2Selected[cb.value] = true;
+        else delete c2Selected[cb.value];
+    });
+    c2UpdateCount();
+}
+
+function c2ToggleDropdown(){
+    var dd = document.getElementById('c2-asset-dropdown');
+    if(!dd) return;
+    var showing = dd.style.display !== 'none';
+    if(showing){ dd.style.display='none'; return; }
+    var btn = document.getElementById('c2-asset-toggle');
+    var r = btn.getBoundingClientRect();
+    dd.style.width = r.width + 'px';
+    dd.style.left = r.left + 'px';
+    dd.style.bottom = (window.innerHeight - r.top + 2) + 'px';
+    dd.style.display = 'block';
+}
+
+function c2FilterAssets(){ c2RenderList(); }
+
+function c2ShowCancel(show){
+    var btn = document.getElementById('c2-cancel-btn');
+    if(btn) btn.style.display = show ? 'inline-block' : 'none';
+}
+
+function c2Done(statusEl, msg, color){
+    statusEl.textContent = msg;
+    statusEl.style.color = color;
+    c2Abort = null;
+    c2ShowCancel(false);
+}
+
+function c2Cancel(){
+    var statusEl = document.getElementById('c2-status');
+    // Abort any in-flight fetches
+    if(c2Abort){ try{ c2Abort.abort(); }catch(e){} c2Abort = null; }
+    // Send clear to server for active theater
+    var domEl = document.getElementById('c2-domain-filter');
+    var domain = domEl ? domEl.value : 'all';
+    fetch('/api/v1/swarm/clear',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({domain: domain, theater: c2ActiveTheater()})
+    }).then(function(){ console.log('[C2] Cancel: clear sent'); });
+    // Clear formation lines on map
+    if(window.AMOS && typeof AMOS._clearFormationLines === 'function') AMOS._clearFormationLines();
+    if(statusEl){ statusEl.textContent = '⊘ CANCELLED'; statusEl.style.color = '#ff8800'; }
+    c2ShowCancel(false);
+    console.log('[C2] Command cancelled');
+}
+
+function c2Execute(){
+    var actionEl = document.getElementById('c2-action');
+    var statusEl = document.getElementById('c2-status');
+    if(!actionEl){ console.error('[C2] No action select'); return; }
+
+    // Abort any previous in-flight request
+    if(c2Abort){ try{ c2Abort.abort(); }catch(e){} }
+    c2Abort = new AbortController();
+    var signal = c2Abort.signal;
+
+    var val = actionEl.value;
+    var parts = val.split(':');
+    var type = parts[0];
+    var action = parts[1];
+    var domEl = document.getElementById('c2-domain-filter');
+    var domain = domEl ? domEl.value : 'all';
+    var selected = Object.keys(c2Selected);
+
+    console.log('[C2] Execute:', type, action, 'domain:', domain, 'selected:', selected.length);
+    c2ShowCancel(true);
+
+    if(type === 'form'){
+        // Sync hidden swarm-domain
+        var sd = document.getElementById('swarm-domain');
+        if(sd) sd.value = domain;
+        if(!sd){
+            sd = document.createElement('select');
+            sd.id = 'swarm-domain'; sd.style.display = 'none';
+            sd.innerHTML = '<option value="ground">ground</option><option value="air">air</option><option value="maritime">maritime</option><option value="all">all</option>';
+            document.body.appendChild(sd);
+            sd.value = domain;
+        }
+
+        statusEl.textContent = '⏳ ' + action.toUpperCase() + '...';
+        statusEl.style.color = '#ffaa00';
+
+        // Use AMOS.setFormation if available
+        if(window.AMOS && typeof AMOS.setFormation === 'function'){
+            console.log('[C2] Calling AMOS.setFormation("'+action+'")');
+            AMOS.setFormation(action);
+            return;
+        }
+
+        // Fallback direct API
+        fetch('/api/v1/swarm/formation', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({formation: action, domain: domain, theater: c2ActiveTheater()}),
+            signal: signal
+        }).then(function(r){ return r.json(); }).then(function(data){
+            if(data.error){ c2Done(statusEl, '✕ ' + data.error, '#ff4444'); return; }
+            c2Done(statusEl, '✓ ' + action.toUpperCase() + ' (' + (data.count||0) + ' assets)', '#00ff41');
+        }).catch(function(e){
+            if(e.name === 'AbortError'){ return; }
+            c2Done(statusEl, '✕ ' + e.message, '#ff4444');
+        });
+    }
+    else if(type === 'cmd'){
+        if(selected.length === 0){
+            statusEl.textContent = '⚠ Select assets first';
+            statusEl.style.color = '#ffaa00';
+            c2ShowCancel(false);
+            return;
+        }
+        statusEl.textContent = '⏳ ' + action + '...';
+        Promise.all(selected.map(function(id){
+            return fetch('/api/v1/phase3/asset/'+encodeURIComponent(id)+'/task',{
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({task:action}),
+                signal: signal
+            });
+        })).then(function(){
+            c2Done(statusEl, '✓ ' + action.toUpperCase() + ' → ' + selected.length, '#00ff41');
+        }).catch(function(e){
+            if(e.name === 'AbortError'){ return; }
+            c2Done(statusEl, '✕ ' + e.message, '#ff4444');
+        });
+    }
+    else if(type === 'swarm'){
+        if(action === 'clear'){
+            fetch('/api/v1/swarm/clear',{
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({domain: domain, theater: c2ActiveTheater()}),
+                signal: signal
+            }).then(function(){
+                c2Done(statusEl, '✓ Cleared', '#00ff41');
+            }).catch(function(e){
+                if(e.name === 'AbortError'){ return; }
+                c2Done(statusEl, '✕ ' + e.message, '#ff4444');
+            });
+        }
+    }
+}
+
+c2LoadAssets();
+setInterval(c2LoadAssets, 10000);
+console.log('[AMOS] C2 panel functions loaded');
+</script>
+
+{% endblock %}
+

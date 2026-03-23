@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  mos:
+    build: .
+    container_name: amos-c2
+    ports:
+      - "2600:2600"
+      - "6969:6969/udp"   # ATAK CoT
+    environment:
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-amos-prod-key-2026}
+    volumes:
+      - amos-data:/opt/amos/data
+      - ./config:/opt/amos/config:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2600/login"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  amos-data:

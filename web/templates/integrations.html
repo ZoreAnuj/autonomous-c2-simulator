@@ -1,0 +1,513 @@
+{% extends "base.html" %}
+{% block title %}Integrations{% endblock %}
+{% block head %}
+<style>
+.bridge-card{background:#0d0d0d;border:1px solid #333;padding:14px;border-radius:4px}
+.bridge-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.bridge-name{font-weight:bold;font-size:1em}
+.bridge-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
+.bridge-dot.on{background:#00ff41}.bridge-dot.off{background:#ff4444}
+.bridge-stat{display:inline-block;margin-right:12px;font-size:.8em;color:#888}
+.bridge-stat span{color:#00ff41}
+.l16-msg{padding:4px 0;font-size:.78em;border-bottom:1px solid #111}
+.l16-msg .j-type{color:#ffaa00;font-weight:bold;width:40px;display:inline-block}
+.l16-participant{padding:4px 8px;margin:2px;display:inline-block;border:1px solid #333;font-size:.78em;border-radius:3px}
+</style>
+{% endblock %}
+{% block content %}
+<div class="card"><h3>INTEGRATION HUB — External System Bridges</h3></div>
+<div class="grid-3">
+  <!-- PX4 -->
+  <div class="bridge-card" id="px4-card">
+    <div class="bridge-hdr">
+      <div><span class="bridge-dot off" id="px4-dot"></span><span class="bridge-name">PX4 SITL</span></div>
+      <span class="badge badge-blue">MAVLink</span>
+    </div>
+    <div id="px4-info" style="font-size:.8em;color:#888">Loading...</div>
+  </div>
+  <!-- TAK -->
+  <div class="bridge-card" id="tak-card">
+    <div class="bridge-hdr">
+      <div><span class="bridge-dot off" id="tak-dot"></span><span class="bridge-name">TAK/ATAK</span></div>
+      <span class="badge badge-yellow">CoT XML</span>
+    </div>
+    <div id="tak-info" style="font-size:.8em;color:#888">Loading...</div>
+    <div style="margin-top:8px">
+      <input type="text" id="tak-host" placeholder="TAK host" value="239.2.3.1" style="width:110px">
+      <input type="number" id="tak-port" placeholder="Port" value="6969" style="width:70px">
+      <select id="tak-proto" style="background:#0a0a0a;color:#00ff41;border:1px solid #333;padding:4px"><option value="udp">UDP</option><option value="tcp">TCP</option></select>
+      <button class="btn" onclick="takConnect()" style="margin-left:4px">CONNECT</button>
+      <button class="btn btn-red" onclick="takDisconnect()">DISCONNECT</button>
+    </div>
+  </div>
+  <!-- Link 16 -->
+  <div class="bridge-card" id="l16-card">
+    <div class="bridge-hdr">
+      <div><span class="bridge-dot on" id="l16-dot"></span><span class="bridge-name">Link 16</span></div>
+      <span class="badge badge-green">TADIL J</span>
+    </div>
+    <div id="l16-info" style="font-size:.8em;color:#888">Loading...</div>
+  </div>
+</div>
+
+  <!-- DimOS -->
+  <div class="bridge-card" id="dimos-card">
+    <div class="bridge-hdr">
+      <div><span class="bridge-dot off" id="dimos-dot"></span><span class="bridge-name">DimOS</span></div>
+      <span class="badge badge-green">Bipedal</span>
+    </div>
+    <div id="dimos-info" style="font-size:.8em;color:#888">Loading...</div>
+    <div style="margin-top:8px">
+      <input type="text" id="dimos-host" placeholder="Host" value="localhost" style="width:100px">
+      <input type="number" id="dimos-port" placeholder="Port" value="9090" style="width:70px">
+      <button class="btn" onclick="dimosConnect()" style="margin-left:4px">CONNECT</button>
+      <button class="btn btn-red" onclick="dimosDisconnect()">DISCONNECT</button>
+    </div>
+    <div style="margin-top:6px">
+      <input type="text" id="dimos-test-asset" placeholder="Asset ID" value="CLAW1" style="width:80px">
+      <select id="dimos-test-cmd" style="background:#0a0a0a;color:#00ff41;border:1px solid #333;padding:4px">
+        <option>NAVIGATE</option><option>BREACH</option><option>SCAN</option>
+        <option>HOLD</option><option>POSTURE</option><option>MANIPULATE</option>
+      </select>
+      <button class="btn" onclick="dimosSendTest()" style="margin-left:4px">SEND</button>
+    </div>
+    <div id="dimos-cmd-result" style="font-size:.7em;color:#888;margin-top:4px"></div>
+  </div>
+</div>
+
+<!-- Sensor Bridges -->
+<div class="card" style="margin-top:8px"><h3>SENSOR BRIDGES — External Data Feeds</h3></div>
+<div class="grid-3">
+  <!-- ADS-B -->
+  <div class="bridge-card" id="adsb-card">
+    <div class="bridge-hdr">
+      <div><span class="bridge-dot off" id="adsb-dot"></span><span class="bridge-name">ADS-B</span></div>
+      <span class="badge badge-cyan">1090 MHz</span>
+    </div>
+    <div id="adsb-info" style="font-size:.8em;color:#888">Loading...</div>
+    <div style="margin-top:8px">
+      <input type="text" id="adsb-host" placeholder="Host" value="localhost" style="width:100px">
+      <input type="number" id="adsb-port" placeholder="Port" value="8080" style="width:70px">
+      <select id="adsb-proto" style="background:#0a0a0a;color:#00ff41;border:1px solid #333;padding:4px"><option value="raw">JSON</option><option value="sbs">SBS</option><option value="beast">Beast</option></select>
+      <button class="btn" onclick="adsbConnect()" style="margin-left:4px">CONNECT</button>
+      <button class="btn btn-red" onclick="adsbDisconnect()">STOP</button>
+    </div>
+  </div>
+  <!-- APRS -->
+  <div class="bridge-card" id="aprs-card">
+    <div class="bridge-hdr">
+      <div><span class="bridge-dot off" id="aprs-dot"></span><span class="bridge-name">APRS</span></div>
+      <span class="badge badge-green">144.39 MHz</span>
+    </div>
+    <div id="aprs-info" style="font-size:.8em;color:#888">Loading...</div>
+    <div style="margin-top:8px">
+      <input type="text" id="aprs-call" placeholder="Callsign" value="AMOS-1" style="width:80px">
+      <input type="text" id="aprs-server" placeholder="Server" value="rotate.aprs2.net" style="width:130px">
+      <button class="btn" onclick="aprsConnect()" style="margin-left:4px">CONNECT</button>
+      <button class="btn btn-red" onclick="aprsDisconnect()">STOP</button>
+    </div>
+  </div>
+  <!-- AIS -->
+  <div class="bridge-card" id="ais-card">
+    <div class="bridge-hdr">
+      <div><span class="bridge-dot off" id="ais-dot"></span><span class="bridge-name">AIS</span></div>
+      <span class="badge badge-blue">NMEA</span>
+    </div>
+    <div id="ais-info" style="font-size:.8em;color:#888">Loading...</div>
+    <div style="margin-top:8px">
+      <input type="text" id="ais-host" placeholder="Host" value="localhost" style="width:100px">
+      <input type="number" id="ais-port" placeholder="Port" value="10110" style="width:70px">
+      <button class="btn" onclick="aisConnect()" style="margin-left:4px">CONNECT</button>
+      <button class="btn btn-red" onclick="aisDisconnect()">STOP</button>
+    </div>
+  </div>
+</div>
+<div class="grid-3" style="margin-top:8px">
+  <!-- Meshtastic -->
+  <div class="bridge-card" id="lora-card">
+    <div class="bridge-hdr">
+      <div><span class="bridge-dot off" id="lora-dot"></span><span class="bridge-name">Meshtastic</span></div>
+      <span class="badge badge-yellow">LoRa</span>
+    </div>
+    <div id="lora-info" style="font-size:.8em;color:#888">Loading...</div>
+    <div style="margin-top:8px">
+      <select id="lora-type" style="background:#0a0a0a;color:#00ff41;border:1px solid #333;padding:4px"><option value="serial">Serial</option><option value="tcp">TCP</option><option value="ble">BLE</option></select>
+      <input type="text" id="lora-device" placeholder="Device" value="/dev/ttyACM0" style="width:120px">
+      <button class="btn" onclick="loraConnect()" style="margin-left:4px">CONNECT</button>
+      <button class="btn btn-red" onclick="loraDisconnect()">STOP</button>
+    </div>
+    <div style="margin-top:6px">
+      <input type="text" id="lora-msg" placeholder="Message..." style="width:170px">
+      <button class="btn" onclick="loraSend()" style="margin-left:4px">SEND</button>
+    </div>
+  </div>
+  <!-- RemoteID -->
+  <div class="bridge-card" id="rid-card">
+    <div class="bridge-hdr">
+      <div><span class="bridge-dot off" id="rid-dot"></span><span class="bridge-name">RemoteID</span></div>
+      <span class="badge badge-red">FAA</span>
+    </div>
+    <div id="rid-info" style="font-size:.8em;color:#888">Loading...</div>
+    <div style="margin-top:8px">
+      <button class="btn" onclick="ridConnect()">SCAN</button>
+      <button class="btn btn-red" onclick="ridDisconnect()">STOP</button>
+    </div>
+  </div>
+  <!-- DragonOS / WarDragon -->
+  <div class="bridge-card" id="dragon-card">
+    <div class="bridge-hdr">
+      <div><span class="bridge-dot off" id="dragon-dot"></span><span class="bridge-name">DragonOS</span></div>
+      <span class="badge badge-cyan">SDR</span>
+    </div>
+    <div id="dragon-info" style="font-size:.8em;color:#888">Loading...</div>
+    <div style="margin-top:8px">
+      <input type="text" id="dragon-host" placeholder="MQTT Host" value="localhost" style="width:100px">
+      <input type="number" id="dragon-port" placeholder="Port" value="1883" style="width:70px">
+      <button class="btn" onclick="dragonConnect()" style="margin-left:4px">CONNECT</button>
+      <button class="btn btn-red" onclick="dragonDisconnect()">STOP</button>
+    </div>
+    <div style="margin-top:4px;font-size:.7em;color:#555">Kismet URL (opt): <input type="text" id="dragon-kismet" placeholder="http://dragon:2501" style="width:160px"></div>
+  </div>
+</div>
+
+<!-- SDR Bridges -->
+<div class="card" style="margin-top:8px"><h3>SDR PLATFORMS — Software Defined Radio</h3></div>
+<div class="grid-3">
+  <!-- SDR++ -->
+  <div class="bridge-card" id="sdrpp-card">
+    <div class="bridge-hdr">
+      <div><span class="bridge-dot off" id="sdrpp-dot"></span><span class="bridge-name">SDR++</span></div>
+      <span class="badge badge-cyan">HTTP API</span>
+    </div>
+    <div id="sdrpp-info" style="font-size:.8em;color:#888">Loading...</div>
+    <div style="margin-top:8px">
+      <input type="text" id="sdrpp-host" placeholder="Host" value="localhost" style="width:100px">
+      <input type="number" id="sdrpp-port" placeholder="Port" value="8080" style="width:70px">
+      <button class="btn" onclick="sdrppConnect()" style="margin-left:4px">CONNECT</button>
+      <button class="btn btn-red" onclick="sdrppDisconnect()">STOP</button>
+    </div>
+    <div style="margin-top:6px">
+      <input type="number" id="sdrpp-freq" placeholder="Freq (MHz)" value="144.39" style="width:100px" step="0.001">
+      <button class="btn" onclick="sdrppTune()" style="margin-left:4px">TUNE</button>
+    </div>
+  </div>
+  <!-- SigDigger -->
+  <div class="bridge-card" id="sigdig-card">
+    <div class="bridge-hdr">
+      <div><span class="bridge-dot off" id="sigdig-dot"></span><span class="bridge-name">SigDigger</span></div>
+      <span class="badge badge-yellow">UDP</span>
+    </div>
+    <div id="sigdig-info" style="font-size:.8em;color:#888">Loading...</div>
+    <div style="margin-top:8px">
+      <input type="number" id="sigdig-port" placeholder="UDP Port" value="5557" style="width:80px">
+      <button class="btn" onclick="sigdigConnect()" style="margin-left:4px">LISTEN</button>
+      <button class="btn btn-red" onclick="sigdigDisconnect()">STOP</button>
+    </div>
+  </div>
+</div>
+
+<!-- CoT Ingest -->
+<div class="card" style="margin-top:8px"><h3>TACTICAL DATA LINKS — CoT / Blue Force Tracking</h3></div>
+<div class="grid-3">
+  <!-- CoT Receiver -->
+  <div class="bridge-card" id="cot-card">
+    <div class="bridge-hdr">
+      <div><span class="bridge-dot off" id="cot-dot"></span><span class="bridge-name">CoT Receiver</span></div>
+      <span class="badge badge-green">CoT XML</span>
+    </div>
+    <div id="cot-info" style="font-size:.8em;color:#888">Loading...</div>
+    <div style="margin-top:8px">
+      <input type="number" id="cot-udp" placeholder="UDP Port" value="6969" style="width:80px">
+      <input type="number" id="cot-tcp" placeholder="TCP Port" value="4242" style="width:80px">
+      <input type="text" id="cot-mcast" placeholder="Multicast" value="239.2.3.1" style="width:100px">
+    </div>
+    <div style="margin-top:6px">
+      <button class="btn" onclick="cotConnect()">LISTEN</button>
+      <button class="btn btn-red" onclick="cotDisconnect()">STOP</button>
+    </div>
+  </div>
+</div>
+
+<!-- ISR Metadata -->
+<div class="card" style="margin-top:8px"><h3>ISR METADATA — Standards-Based Interop</h3></div>
+<div class="grid-3">
+  <!-- ZMeta -->
+  <div class="bridge-card" id="zmeta-card">
+    <div class="bridge-hdr">
+      <div><span class="bridge-dot off" id="zmeta-dot"></span><span class="bridge-name">ZMeta</span></div>
+      <span class="badge badge-cyan">ISR v1.0</span>
+    </div>
+    <div id="zmeta-info" style="font-size:.8em;color:#888">Loading...</div>
+    <div style="margin-top:8px">
+      <input type="number" id="zmeta-listen" placeholder="Listen Port" value="5555" style="width:90px">
+      <input type="text" id="zmeta-fwd-host" placeholder="Fwd Host" value="127.0.0.1" style="width:90px">
+      <input type="number" id="zmeta-fwd-port" placeholder="Fwd Port" value="5556" style="width:80px">
+      <select id="zmeta-profile" style="background:#0a0a0a;color:#00ff41;border:1px solid #333;padding:4px"><option value="H">H (Full)</option><option value="M">M (IP Radio)</option><option value="L">L (LoRa)</option></select>
+    </div>
+    <div style="margin-top:6px">
+      <button class="btn" onclick="zmetaConnect()">CONNECT</button>
+      <button class="btn btn-red" onclick="zmetaDisconnect()">STOP</button>
+    </div>
+  </div>
+</div>
+
+<!-- Link 16 Detail -->
+<div class="grid-2" style="margin-top:8px">
+  <div class="card"><h3>LINK 16 — PARTICIPANTS</h3>
+    <div id="l16-participants" style="margin-top:6px"></div>
+    <div style="margin-top:8px">
+      <select id="l16-asset" style="background:#0a0a0a;color:#00ff41;border:1px solid #333;padding:4px"></select>
+      <button class="btn" onclick="l16Join()" style="margin-left:4px">JOIN NET</button>
+    </div>
+  </div>
+  <div class="card"><h3>LINK 16 — MESSAGE LOG <span style="color:#888;font-size:.8em">(J-series)</span></h3>
+    <div class="scroll-box" style="max-height:300px" id="l16-messages"></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function _dot(id,on){document.getElementById(id).className='bridge-dot '+(on?'on':'off');}
+function _info(id,html){document.getElementById(id).innerHTML=html;}
+function _stat(label,val){return '<div class="bridge-stat">'+label+': <span>'+val+'</span></div>';}
+
+async function refreshBridges(){
+    const d=await apiFetch('/api/v1/bridge/all');
+    // PX4
+    const px4=d.px4||{};
+    _dot('px4-dot',px4.connected);
+    _info('px4-info',px4.connected
+        ?_stat('Status','Connected')+_stat('Vehicles',px4.vehicles||0)
+        :'<div style="color:#ff4444">Offline — No PX4 SITL detected</div>');
+    // TAK
+    const tak=d.tak||{};
+    _dot('tak-dot',tak.connected);
+    _info('tak-info',tak.connected
+        ?_stat('Protocol',tak.protocol)+_stat('Host',tak.host+':'+tak.port)+_stat('Sent',tak.sent)
+        :'<div style="color:#888">Not connected — configure below</div>');
+    // Link 16
+    const l16=d.link16||{};
+    _dot('l16-dot',l16.participants>0);
+    _info('l16-info',_stat('Net',l16.net_id||'—')+_stat('Participants',l16.participants||0)+_stat('Tracks',l16.tracks||0)+_stat('Messages',l16.messages_sent||0));
+    // ADS-B
+    const ab=d.adsb||{};
+    _dot('adsb-dot',ab.connected);
+    _info('adsb-info',ab.connected
+        ?_stat('Aircraft',ab.aircraft_count||ab.tracks||0)+_stat('Messages',ab.messages||0)
+        :(ab.available?'<div style="color:#888">Ready — configure source below</div>':'<div style="color:#ff4444">Bridge not loaded</div>'));
+    // APRS
+    const ap=d.aprs||{};
+    _dot('aprs-dot',ap.connected);
+    _info('aprs-info',ap.connected
+        ?_stat('Server',ap.server||'APRS-IS')+_stat('Stations',ap.station_count||ap.packets||0)
+        :(ap.available?'<div style="color:#888">Ready — enter callsign below</div>':'<div style="color:#ff4444">Bridge not loaded</div>'));
+    // AIS
+    const ai=d.ais||{};
+    _dot('ais-dot',ai.connected);
+    _info('ais-info',ai.connected
+        ?_stat('Vessels',ai.vessel_count||ai.vessels||0)+_stat('Sentences',ai.sentences||0)
+        :(ai.available?'<div style="color:#888">Ready — configure NMEA source</div>':'<div style="color:#ff4444">Bridge not loaded</div>'));
+    // LoRa/Meshtastic
+    const lr=d.lora||{};
+    _dot('lora-dot',lr.connected);
+    _info('lora-info',lr.connected
+        ?_stat('Nodes',lr.node_count||lr.nodes||0)+_stat('Messages',lr.messages||0)
+        :(lr.available?'<div style="color:#888">Ready — select connection type</div>':'<div style="color:#ff4444">Bridge not loaded</div>'));
+    // RemoteID
+    const ri=d.remoteid||{};
+    _dot('rid-dot',ri.connected);
+    _info('rid-info',ri.connected
+        ?_stat('Beacons',ri.beacon_count||ri.beacons||0)+_stat('UAS detected',ri.uas_count||0)
+        :(ri.available?'<div style="color:#888">Ready — click SCAN to start</div>':'<div style="color:#ff4444">Bridge not loaded</div>'));
+    // DragonOS
+    const dg=d.dragonos||{};
+    _dot('dragon-dot',dg.connected);
+    const ds=dg.stats||{};
+    const db=dg.buffers||{};
+    _info('dragon-info',dg.connected
+        ?_stat('Drones',db.drone_detections||0)+_stat('RemoteID',db.remoteid_decodes||0)+_stat('Spectrum',db.spectrum_events||0)+_stat('DF',db.df_bearings||0)+_stat('Kismet',db.kismet_devices||0)+_stat('MQTT msgs',ds.mqtt_messages||0)
+        :(dg.available?'<div style="color:#888">Ready — enter MQTT broker below</div>':'<div style="color:#ff4444">Bridge not loaded</div>'));
+    // CoT
+    const cot=d.cot||{};
+    _dot('cot-dot',cot.connected);
+    const cs=cot.stats||{};
+    const ct=cot.tracks||{};
+    _info('cot-info',cot.connected
+        ?_stat('Recv',cs.raw_received||0)+_stat('Friendly',ct.friendly||0)+_stat('Hostile',ct.hostile||0)+_stat('Neutral',ct.neutral||0)+_stat('Alerts',ct.alerts||0)+_stat('Errors',cs.parse_errors||0)
+        :(cot.available?'<div style="color:#888">Ready — click LISTEN to start</div>':'<div style="color:#ff4444">Bridge not loaded</div>'));
+    // ZMeta
+    const zm=d.zmeta||{};
+    _dot('zmeta-dot',zm.connected);
+    const zs=zm.stats||{};
+    const zb=zm.buffers||{};
+    _info('zmeta-info',zm.connected
+        ?_stat('Recv',zs.received||0)+_stat('Fwd',zs.forwarded||0)+_stat('Emit',zs.emitted||0)+_stat('Obs',zb.observations||0)+_stat('Tracks',zb.track_states||0)+_stat('Fusions',zb.fusions||0)+_stat('Cmds In',zb.commands_in||0)+_stat('Cmds Out',zb.commands_out||0)+_stat('Profile',zm.profile||'—')
+        :(zm.available?'<div style="color:#888">Ready — configure ports below</div>':'<div style="color:#ff4444">Bridge not loaded</div>'));
+    // SDR++
+    const sp=d.sdrpp||{};
+    _dot('sdrpp-dot',sp.connected);
+    _info('sdrpp-info',sp.connected
+        ?_stat('Freq',((sp.frequency_mhz||0)+' MHz'))+_stat('Mode',sp.mode||'—')+_stat('BW',sp.bandwidth_hz||0)+_stat('Polls',sp.polls||0)
+        :(sp.available?'<div style="color:#888">Ready — enter SDR++ host below</div>':'<div style="color:#ff4444">Bridge not loaded</div>'));
+    // SigDigger
+    const sd=d.sigdigger||{};
+    _dot('sigdig-dot',sd.connected);
+    _info('sigdig-info',sd.connected
+        ?_stat('Detections',sd.detections||0)+_stat('Recv',sd.received||0)+_stat('Errors',sd.errors||0)
+        :(sd.available?'<div style="color:#888">Ready — click LISTEN to start</div>':'<div style="color:#ff4444">Bridge not loaded</div>'));
+    // DimOS
+    const dm=d.dimos||{};
+    _dot('dimos-dot',dm.connected);
+    var dmMode=dm.standalone?'STANDALONE':'LIVE';
+    _info('dimos-info',dm.connected
+        ?_stat('Mode',dmMode)+_stat('Host',(dm.host||'?')+':'+(dm.port||'?'))+_stat('Cmds',dm.commands_sent||0)+_stat('Telem',((dm.telemetry_assets||[]).length)+' assets')
+        :(dm.available?'<div style="color:#888">Ready — configure endpoint below</div>':'<div style="color:#ff4444">Bridge not loaded</div>'));
+    if(dm.host)document.getElementById('dimos-host').value=dm.host;
+    if(dm.port)document.getElementById('dimos-port').value=dm.port;
+}
+
+async function refreshL16(){
+    // Participants
+    const parts=await apiFetch('/api/v1/bridge/link16/participants');
+    const pdiv=document.getElementById('l16-participants');
+    const keys=Object.keys(parts);
+    if(keys.length===0){pdiv.innerHTML='<span style="color:#888">No participants</span>';
+    }else{pdiv.innerHTML=keys.map(function(k){return '<span class="l16-participant"><span style="color:#00ff41">'+k+'</span> TN:'+parts[k].tn+' ['+parts[k].role+']</span>';}).join('');}
+    // Messages
+    const msgs=await apiFetch('/api/v1/bridge/link16/messages?limit=30');
+    const mdiv=document.getElementById('l16-messages');
+    mdiv.innerHTML=(Array.isArray(msgs)?msgs:[]).reverse().map(function(m){
+        return '<div class="l16-msg"><span class="j-type">'+m.j_type+'</span> '+m.description+' — TN:'+m.source_tn+' <span style="color:#555">seq:'+m.sequence+'</span></div>';
+    }).join('');
+    // Asset selector
+    const assets=await apiFetch('/api/v1/assets');
+    const sel=document.getElementById('l16-asset');
+    sel.innerHTML=Object.keys(assets).map(function(k){return '<option value="'+k+'">'+k+'</option>';}).join('');
+}
+
+async function takConnect(){
+    const host=document.getElementById('tak-host').value;
+    const port=document.getElementById('tak-port').value;
+    const proto=document.getElementById('tak-proto').value;
+    await apiPost('/api/v1/bridge/tak/connect',{host:host,port:parseInt(port),protocol:proto});
+    refreshBridges();
+}
+async function takDisconnect(){await apiPost('/api/v1/bridge/tak/disconnect',{});refreshBridges();}
+async function l16Join(){
+    const aid=document.getElementById('l16-asset').value;
+    await apiPost('/api/v1/bridge/link16/join',{asset_id:aid});
+    refreshL16();
+}
+// Sensor bridge controls
+async function adsbConnect(){
+    await apiPost('/api/v1/bridge/adsb/connect',{
+        host:document.getElementById('adsb-host').value,
+        port:parseInt(document.getElementById('adsb-port').value),
+        protocol:document.getElementById('adsb-proto').value
+    }); refreshBridges();
+}
+async function adsbDisconnect(){await apiPost('/api/v1/bridge/adsb/disconnect',{});refreshBridges();}
+async function aprsConnect(){
+    await apiPost('/api/v1/bridge/aprs/connect',{
+        callsign:document.getElementById('aprs-call').value,
+        server:document.getElementById('aprs-server').value
+    }); refreshBridges();
+}
+async function aprsDisconnect(){await apiPost('/api/v1/bridge/aprs/disconnect',{});refreshBridges();}
+async function aisConnect(){
+    await apiPost('/api/v1/bridge/ais/connect',{
+        host:document.getElementById('ais-host').value,
+        port:parseInt(document.getElementById('ais-port').value)
+    }); refreshBridges();
+}
+async function aisDisconnect(){await apiPost('/api/v1/bridge/ais/disconnect',{});refreshBridges();}
+async function loraConnect(){
+    await apiPost('/api/v1/bridge/lora/connect',{
+        connection_type:document.getElementById('lora-type').value,
+        device:document.getElementById('lora-device').value
+    }); refreshBridges();
+}
+async function loraDisconnect(){await apiPost('/api/v1/bridge/lora/disconnect',{});refreshBridges();}
+async function loraSend(){
+    const msg=document.getElementById('lora-msg').value;
+    if(msg){await apiPost('/api/v1/bridge/lora/send',{text:msg});document.getElementById('lora-msg').value='';}
+}
+async function ridConnect(){await apiPost('/api/v1/bridge/remoteid/connect',{});refreshBridges();}
+async function ridDisconnect(){await apiPost('/api/v1/bridge/remoteid/disconnect',{});refreshBridges();}
+async function dragonConnect(){
+    await apiPost('/api/v1/bridge/dragonos/connect',{
+        mqtt_host:document.getElementById('dragon-host').value,
+        mqtt_port:parseInt(document.getElementById('dragon-port').value),
+        kismet_url:document.getElementById('dragon-kismet').value||''
+    }); refreshBridges();
+}
+async function dragonDisconnect(){await apiPost('/api/v1/bridge/dragonos/disconnect',{});refreshBridges();}
+async function cotConnect(){
+    await apiPost('/api/v1/bridge/cot/connect',{
+        udp_port:parseInt(document.getElementById('cot-udp').value),
+        tcp_port:parseInt(document.getElementById('cot-tcp').value),
+        mcast_group:document.getElementById('cot-mcast').value
+    }); refreshBridges();
+}
+async function cotDisconnect(){await apiPost('/api/v1/bridge/cot/disconnect',{});refreshBridges();}
+async function zmetaConnect(){
+    await apiPost('/api/v1/bridge/zmeta/connect',{
+        listen_port:parseInt(document.getElementById('zmeta-listen').value),
+        forward_host:document.getElementById('zmeta-fwd-host').value,
+        forward_port:parseInt(document.getElementById('zmeta-fwd-port').value),
+        profile:document.getElementById('zmeta-profile').value
+    }); refreshBridges();
+}
+async function zmetaDisconnect(){await apiPost('/api/v1/bridge/zmeta/disconnect',{});refreshBridges();}
+async function sdrppConnect(){
+    await apiPost('/api/v1/bridge/sdrpp/connect',{
+        host:document.getElementById('sdrpp-host').value,
+        port:parseInt(document.getElementById('sdrpp-port').value)
+    }); refreshBridges();
+}
+async function sdrppDisconnect(){await apiPost('/api/v1/bridge/sdrpp/disconnect',{});refreshBridges();}
+async function sdrppTune(){
+    const mhz=parseFloat(document.getElementById('sdrpp-freq').value)||0;
+    await apiPost('/api/v1/bridge/sdrpp/tune',{frequency_hz:Math.round(mhz*1e6)});
+    refreshBridges();
+}
+async function sigdigConnect(){
+    await apiPost('/api/v1/bridge/sigdigger/connect',{
+        listen_port:parseInt(document.getElementById('sigdig-port').value)
+    }); refreshBridges();
+}
+async function sigdigDisconnect(){await apiPost('/api/v1/bridge/sigdigger/disconnect',{});refreshBridges();}
+
+// DimOS
+async function dimosConnect(){
+    var r=await apiPost('/api/v1/bridge/dimos/connect',{
+        host:document.getElementById('dimos-host').value,
+        port:parseInt(document.getElementById('dimos-port').value)
+    });
+    document.getElementById('dimos-cmd-result').innerHTML=r.connected
+        ?'<span style="color:#00ff41">Connected'+(r.standalone?' (standalone)':'')+'</span>'
+        :'<span style="color:#ff4444">Connection failed</span>';
+    refreshBridges();
+}
+async function dimosDisconnect(){
+    await apiPost('/api/v1/bridge/dimos/disconnect',{});
+    document.getElementById('dimos-cmd-result').innerHTML='<span style="color:#888">Disconnected</span>';
+    refreshBridges();
+}
+async function dimosSendTest(){
+    var aid=document.getElementById('dimos-test-asset').value;
+    var cmd=document.getElementById('dimos-test-cmd').value;
+    if(!aid){alert('Enter asset ID');return;}
+    var r=await apiPost('/api/v1/bridge/dimos/command',{asset_id:aid,command:cmd,params:{}});
+    if(r.error){
+        document.getElementById('dimos-cmd-result').innerHTML='<span style="color:#ff4444">'+r.error+'</span>';
+    }else{
+        document.getElementById('dimos-cmd-result').innerHTML='<span style="color:#00ff41">Sent '+cmd+' → '+aid+'</span>';
+    }
+}
+
+refreshBridges(); refreshL16();
+setInterval(refreshBridges,5000);
+setInterval(refreshL16,5000);
+</script>
+{% endblock %}
