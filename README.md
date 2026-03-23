@@ -1,20 +1,19 @@
-# AMOS: Autonomous Mission Orchestration System
+# Autonomous C2 Simulator
 
-AMOS is a multi-domain command-and-control platform for coordinating autonomous systems across air, ground, maritime, cyber, and space domains. It serves as an open-core framework for developing, simulating, and managing complex robotic missions with a focus on interoperability and real-time decision-making.
+A multi-domain command-and-control platform for simulating autonomous robotic systems across air, ground, maritime, cyber, and space domains. This project explores open-core C2 architecture, focusing on real-time simulation and orchestration for complex, heterogeneous missions.
 
 ## Key Features
-*   **Multi-Domain C2:** Unified interface for heterogeneous robotic platforms.
-*   **Real-Time Simulation:** Integrated sandbox for mission planning and testing.
-*   **Sensor Fusion & Mesh Networking:** Aggregates data and enables resilient agent communication.
-*   **Extensible Plugin Architecture:** Modular design for custom payloads, protocols, and behaviors.
+*   Real-time multi-domain simulation for autonomous systems.
+*   Extensible plugin architecture for sensor fusion and mission modules.
+*   Integrated mesh networking simulation for resilient agent communication.
 
 ## Tech Stack
-Python, ROS (Robot Operating System), Gazebo/Unity for simulation, MQTT, Docker, Kubernetes.
+Python, ROS (Robot Operating System), Docker, WebSockets, PostgreSQL
 
 ## Getting Started
 ```bash
-git clone https://github.com/zoreanuj/amos-autonomous_mission_orchestration_system.git
-cd amos-autonomous_mission_orchestration_system
+git clone https://github.com/zoreanuj/autonomous-c2-simulator.git
+cd autonomous-c2-simulator
 docker-compose up -d
-# Follow platform-specific setup instructions in /docs
+# Follow additional setup in docs/quickstart.md
 ```
